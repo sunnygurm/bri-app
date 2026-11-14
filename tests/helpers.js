@@ -6,7 +6,7 @@ const SAMPLE_12 = [
 ];
 
 async function openFresh(page) {
-  await page.goto('/PongMasterPro.html');
+  await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Tournament Setup & Player Roster' })).toBeVisible();

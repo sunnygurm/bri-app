@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PongMaster Pro — Belle River Invitational (Est. 2012)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              850: '#172033',
+              950: '#0a0f1c'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- Toast Notification Container (Replaces alert) -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Custom Confirmation Modal (Replaces confirm) -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <h3 id="confirm-title" class="text-lg font-bold text-white mb-2">Confirm Action</h3>
+      <p id="confirm-message" class="text-sm text-slate-300 mb-6">Are you sure you want to proceed?</p>
+      <div class="flex justify-end gap-3">
+        <button id="confirm-cancel-btn" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold transition">Cancel</button>
+        <button id="confirm-ok-btn" type="button" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden JSON File Input for Backup Restore -->
+  <input id="import-json-input" type="file" accept=".json,application/json" onchange="handleImportJsonFile(event)" class="hidden" />
+
+  <!-- Sticky Header & Brand Crest -->
+  <header class="sticky top-0 z-40 bg-slate-950/92 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between py-3.5 gap-3">
+        <!-- Brand Stack -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between lg:justify-start gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950 border border-emerald-400/30 shrink-0">
+                <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 4h14l-1.5 15a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8L5 4z" fill="rgba(239,68,68,0.85)" stroke="#fca5a5"/>
+                  <path d="M4 4h16" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="16.5" cy="9.5" r="2.5" fill="#fbbf24" stroke="#fff" stroke-width="1.2"/>
+                </svg>
+              </div>
+              <div>
+                <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                  PONGMASTER <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Pro</span>
+                </h1>
+                <p class="text-xs text-slate-400">2v2 Rotating Partner &amp; Seeded Playoff Engine</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Belle River Invitational (Est. 2012) Crest + Official BRI Emblem -->
+          <div class="inline-flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-slate-900 via-amber-950/35 to-slate-900 border border-amber-500/35 shadow-lg shadow-black/40 self-start">
+            <!-- Ornate Heritage Championship Shield SVG -->
+            <svg class="w-11 h-11 shrink-0 drop-shadow-[0_2px_6px_rgba(245,158,11,0.35)]" viewBox="0 0 100 104" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Belle River Invitational Est. 2012 Crest">
+              <defs>
+                <linearGradient id="briGold" x1="0" y1="0" x2="100" y2="104" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#fde68a"/>
+                  <stop offset="45%" stop-color="#f59e0b"/>
+                  <stop offset="100%" stop-color="#b45309"/>
+                </linearGradient>
+                <linearGradient id="briEmerald" x1="20" y1="12" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#065f46"/>
+                  <stop offset="100%" stop-color="#022c22"/>
+                </linearGradient>
+                <linearGradient id="briCupRed" x1="38" y1="36" x2="62" y2="66" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#f87171"/>
+                  <stop offset="50%" stop-color="#dc2626"/>
+                  <stop offset="100%" stop-color="#991b1b"/>
+                </linearGradient>
+              </defs>
+              <!-- Crossed Paddles -->
+              <g opacity="0.95">
+                <rect x="13" y="74" width="6" height="19" rx="2.5" transform="rotate(38 13 74)" fill="#d97706" stroke="#fef3c7" stroke-width="1"/>
+                <rect x="82" y="77" width="6" height="19" rx="2.5" transform="rotate(-38 82 77)" fill="#d97706" stroke="#fef3c7" stroke-width="1"/>
+                <circle cx="22" cy="24" r="11" fill="#991b1b" stroke="url(#briGold)" stroke-width="2"/>
+                <circle cx="78" cy="24" r="11" fill="#047857" stroke="url(#briGold)" stroke-width="2"/>
+              </g>
+              <!-- Championship Shield -->
+              <path d="M50 7 L84 19 V49 C84 72 68 88 50 96 C32 88 16 72 16 49 V19 L50 7 Z" fill="url(#briEmerald)" stroke="url(#briGold)" stroke-width="3.2"/>
+              <path d="M50 12 L79 22.5 V48.5 C79 68.5 65 82.5 50 90 C35 82.5 21 68.5 21 48.5 V22.5 L50 12 Z" stroke="#fde68a" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="2.5 2"/>
+              <!-- Star Crown -->
+              <polygon points="50,15 51.8,19.2 56.3,19.5 52.8,22.4 53.9,26.8 50,24.4 46.1,26.8 47.2,22.4 43.7,19.5 48.2,19.2" fill="#fde68a"/>
+              <circle cx="38" cy="22.5" r="1.5" fill="#fbbf24"/>
+              <circle cx="62" cy="22.5" r="1.5" fill="#fbbf24"/>
+              <!-- River Wave Motif -->
+              <path d="M29 33 Q36 29.5 43 33 T57 33 T71 33" stroke="#34d399" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.85"/>
+              <!-- Red Solo Cup & Pong Ball -->
+              <path d="M39 40 H61 L58 65 C57.8 66.6 56.5 67.8 54.9 67.8 H45.1 C43.5 67.8 42.2 66.6 42 65 L39 40 Z" fill="url(#briCupRed)" stroke="#fecaca" stroke-width="1.2"/>
+              <line x1="38" y1="40" x2="62" y2="40" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+              <line x1="40.5" y1="49" x2="59.5" y2="49" stroke="#fca5a5" stroke-width="0.9" stroke-opacity="0.7"/>
+              <line x1="41.5" y1="58" x2="58.5" y2="58" stroke="#fca5a5" stroke-width="0.9" stroke-opacity="0.7"/>
+              <circle cx="57" cy="34.5" r="4.3" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.3"/>
+              <!-- EST. 2012 Ribbon Banner -->
+              <path d="M12 72 L22 69 V80 L12 83 L15.5 77.5 Z" fill="#b45309"/>
+              <path d="M88 72 L78 69 V80 L88 83 L84.5 77.5 Z" fill="#b45309"/>
+              <rect x="20" y="67.5" width="60" height="13.5" rx="3" fill="#0f172a" stroke="url(#briGold)" stroke-width="1.6"/>
+              <text x="50" y="76.5" text-anchor="middle" fill="#fde68a" font-family="Inter, sans-serif" font-size="7.4" font-weight="900" letter-spacing="1.1">EST. 2012</text>
+            </svg>
+
+            <!-- Crest Typography -->
+            <div class="leading-tight pr-1">
+              <div class="text-[11px] sm:text-xs font-black tracking-[0.14em] uppercase bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-200 bg-clip-text text-transparent">
+                Belle River Invitational
+              </div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-400/40 text-[9px] font-extrabold tracking-widest uppercase text-amber-300">
+                  Est. 2012
+                </span>
+                <span class="text-[10px] font-semibold tracking-wider uppercase text-emerald-300/90">
+                  &bull; Annual Tradition
+                </span>
+              </div>
+            </div>
+
+            <!-- Official BRI Emblem -->
+            <div class="pl-2.5 border-l border-amber-500/30 flex items-center shrink-0">
+              <svg class="w-11 h-12 rounded-lg overflow-hidden border border-slate-200/30 shadow-md" viewBox="0 0 100 108" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Official BRI Logo">
+                <rect width="100" height="108" fill="#D51E18"/>
+                <polygon points="0,0 14,0 42,108 0,108" fill="#0D4796"/>
+                <text x="54" y="34" fill="#E6E7E8" font-family="Impact, 'Arial Narrow', 'Inter', sans-serif" font-size="34" font-weight="900" letter-spacing="-0.5">BRI</text>
+                <g fill="#E6E7E8" stroke="#33373D" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round">
+                  <path d="M18 108 L26 60 C29 48 34 38 41 34 C53 36 66 43 74 52 C78 57 77 65 72 68 L85 82 C92 90 95 99 95 108 Z"/>
+                  <path d="M36 33 L41 34 C37 44 33 56 31 66 L26 63 C28 52 31 41 36 33 Z"/>
+                  <path d="M44 57 C52 50 64 52 70 61 L88 83 C94 91 96 100 95 108 L64 108 L45 84 C40 76 40 64 44 57 Z"/>
+                  <path d="M1 31 L31 27 L34 34 L24 51 C19 57 14 59 11 55 L9 49 L14 48 L9 46 C7 43 7 39 5 37 L1 35 Z"/>
+                  <path d="M7 35 L13 33" fill="none"/>
+                  <path d="M1 31 L0 36 L4 37" fill="none"/>
+                  <polygon points="11,48 14,49 11,60 8,59" fill="#E6E7E8" stroke="#33373D" stroke-width="1.2"/>
+                  <path d="M-2 29 C-2 15 7 8 18 8 C28 8 34 15 33 27 L27 27 C18 29 8 30 -2 31 Z"/>
+                  <path d="M11 8 C12 6.5 14 6.5 15 8 Z"/>
+                  <path d="M-1 19 C2 18 5 19 5 22 L5 26 L-1 26 Z"/>
+                  <path d="M32 26 L41 29 C43 30 43 33 40 34 L31 31 Z"/>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Utility Controls & Navigation Tabs -->
+        <div class="flex flex-col lg:items-end gap-2.5">
+          <!-- Utility Bar -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="autosave-status" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-300">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Saved
+            </span>
+            <button type="button" onclick="exportTournamentJson()" class="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold transition" title="Download JSON backup">
+              ⬇ Export JSON
+            </button>
+            <button type="button" onclick="triggerImportJson()" class="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold transition" title="Restore JSON backup">
+              ⬆ Import JSON
+            </button>
+            <button type="button" onclick="promptResetTournament()" class="px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-500/30 text-xs font-semibold transition" title="Reset entire tournament">
+              Reset All
+            </button>
+          </div>
+
+          <!-- Navigation Tabs -->
+          <nav class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+            <button id="nav-setup" type="button" onclick="switchTab('setup')" class="nav-tab px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap">
+              1. Setup &amp; Roster
+            </button>
+            <button id="nav-roundrobin" type="button" onclick="switchTab('roundrobin')" class="nav-tab px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap">
+              2. Round Robin
+            </button>
+            <button id="nav-standings" type="button" onclick="switchTab('standings')" class="nav-tab px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap">
+              3. Standings &amp; Seeding
+            </button>
+            <button id="nav-bracket" type="button" onclick="switchTab('bracket')" class="nav-tab px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap">
+              4. Playoff Bracket
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ==================== TAB 1: SETUP & ROSTER ==================== -->
+    <section id="view-setup" class="tab-view space-y-6">
+      <div class="bg-slate-900/85 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-5 border-b border-slate-800">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-bold text-white">Tournament Setup &amp; Player Roster</h2>
+            <p class="text-sm text-slate-400 mt-0.5">Add 10 to 30 participants, configure courts, Sudden Death rules, and tracked stats, then generate the Round Robin.</p>
+          </div>
+          <span id="player-count-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 self-start sm:self-auto">
+            0 / 30 Players (Min 10)
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5">
+          <!-- Left: Player Roster Management -->
+          <div class="lg:col-span-7 space-y-5">
+            <!-- Individual Player Input -->
+            <form onsubmit="handleAddPlayer(event)" class="flex gap-2">
+              <input
+                id="single-player-input"
+                type="text"
+                maxlength="28"
+                placeholder="Enter participant name..."
+                class="flex-1 bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none"
+              />
+              <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition whitespace-nowrap">
+                + Add
+              </button>
+            </form>
+
+            <!-- Quick-Fill Sample Rosters -->
+            <div class="flex flex-wrap items-center gap-2 bg-slate-950/75 border border-slate-800/80 rounded-xl p-3">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Quick Test Roster:</span>
+              <button type="button" onclick="loadSampleRoster(12)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-xs font-semibold transition">
+                12 Players
+              </button>
+              <button type="button" onclick="loadSampleRoster(17)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-semibold transition">
+                17 Players (Odd)
+              </button>
+              <button type="button" onclick="loadSampleRoster(24)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs font-semibold transition">
+                24 Players
+              </button>
+              <button type="button" onclick="clearRoster()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 border border-slate-800 text-xs font-semibold transition ml-auto">
+                Clear Roster
+              </button>
+            </div>
+
+            <!-- Bulk Paste Box -->
+            <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-3.5 space-y-2">
+              <label for="bulk-player-input" class="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                Bulk Paste Participants (comma or newline separated)
+              </label>
+              <textarea
+                id="bulk-player-input"
+                rows="2"
+                placeholder="e.g., Mike, Sarah, Dave, Jess..."
+                class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
+              ></textarea>
+              <div class="flex justify-end">
+                <button type="button" onclick="handleBulkAddPlayers()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition">
+                  + Import Roster
+                </button>
+              </div>
+            </div>
+
+            <!-- Registered Players Grid -->
+            <div class="space-y-2">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Registered Participants</div>
+              <div id="roster-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Format Configuration & Tracked Stats -->
+          <div class="lg:col-span-5 space-y-5">
+            <div class="bg-slate-950/85 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <h3 class="text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                <span>⚙️</span> Format Configuration
+              </h3>
+
+              <!-- Number of Tables/Courts -->
+              <div>
+                <label for="config-num-tables" class="block text-sm font-semibold text-slate-200 mb-1">
+                  Tables / Courts Available
+                </label>
+                <select id="config-num-tables" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none">
+                  <option value="1">1 Table (1 active game at a time)</option>
+                  <option value="2" selected>2 Tables (Up to 2 active games)</option>
+                  <option value="3">3 Tables (Up to 3 active games)</option>
+                  <option value="4">4 Tables (Up to 4 active games)</option>
+                  <option value="5">5 Tables (Up to 5 active games)</option>
+                  <option value="6">6 Tables (Up to 6 active games)</option>
+                </select>
+              </div>
+
+              <!-- Round-Robin Game Cap -->
+              <div>
+                <label for="config-max-games" class="block text-sm font-semibold text-slate-200 mb-1">
+                  Round-Robin Games Per Player Cap
+                </label>
+                <select id="config-max-games" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none">
+                  <option value="12" selected>12 Games per Player (Default Cap)</option>
+                  <option value="full">Full Partner Rotation (Everyone partners once, up to N-1)</option>
+                  <option value="8">8 Games per Player</option>
+                  <option value="10">10 Games per Player</option>
+                </select>
+              </div>
+
+              <!-- Sudden Death Cup Limit per OT Round -->
+              <div>
+                <label for="config-sudden-death" class="block text-sm font-semibold text-slate-200 mb-1">
+                  Sudden Death OT Cup Increment
+                </label>
+                <select id="config-sudden-death" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none">
+                  <option value="1" selected>+1 Cup per Pairing per OT (10 &rarr; 11 &rarr; 12...)</option>
+                  <option value="3">+3 Cups per Pairing per OT (10 &rarr; 13 &rarr; 16...)</option>
+                </select>
+              </div>
+
+              <!-- Uneven Playoff Teams Handling -->
+              <div>
+                <label for="config-uneven-mode" class="block text-sm font-semibold text-slate-200 mb-1">
+                  Uneven Playoff Bracket Handling
+                </label>
+                <select id="config-uneven-mode" onchange="updateConfig()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none">
+                  <option value="playin" selected>Play-In Match (Lowest Seeds)</option>
+                  <option value="byes">Top-Seed Byes</option>
+                </select>
+              </div>
+
+              <!-- Tracked In-Game Stats Panel -->
+              <div class="pt-3 border-t border-slate-800 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="block text-sm font-semibold text-slate-200">
+                    Tracked In-Game Stats
+                  </label>
+                  <button type="button" onclick="resetDefaultStats()" class="text-[11px] font-semibold text-slate-400 hover:text-emerald-400 transition">
+                    Reset Defaults
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400">
+                  Toggle stats tracked during live play &amp; counted in tie-breakers (<span class="text-emerald-400">+1</span> / <span class="text-rose-400">-1</span>).
+                </p>
+                <div id="stat-definitions-list" class="space-y-1.5">
+                  <!-- Populated dynamically -->
+                </div>
+                <div class="flex gap-1.5 pt-1">
+                  <input id="new-stat-label" type="text" maxlength="18" placeholder="Custom stat (e.g., Island)" class="flex-1 bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none" />
+                  <select id="new-stat-weight" class="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                    <option value="1">+1</option>
+                    <option value="-1">-1</option>
+                  </select>
+                  <button type="button" onclick="handleAddCustomStat()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-xs font-bold transition">
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              <!-- Live Schedule Summary Preview -->
+              <div id="schedule-preview-box" class="bg-slate-900/95 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-300 space-y-1.5">
+                <!-- Populated dynamically -->
+              </div>
+
+              <button id="btn-generate-rr" type="button" onclick="startRoundRobinTournament()" class="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/60 transition flex items-center justify-center gap-2">
+                <span>Generate Round-Robin Schedule</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: ROUND ROBIN ==================== -->
+    <section id="view-roundrobin" class="tab-view hidden space-y-6">
+      <!-- Top Control & Progress Banner -->
+      <div class="bg-slate-900/85 border border-slate-800 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <h2 class="text-xl sm:text-2xl font-bold text-white">Round-Robin Court &amp; Queue Manager</h2>
+            <span id="rr-progress-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              0 / 0 Completed
+            </span>
+            <span id="rr-table-usage-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              0 / 2 Tables Active
+            </span>
+          </div>
+          <p class="text-sm text-slate-400 mt-1">
+            Press <strong class="text-slate-200">▶ Game Started</strong> on a queued match to occupy an open table, track live stats &amp; overtime, and finish the match.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button type="button" onclick="simulateRemainingMatches()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs sm:text-sm font-semibold transition">
+            ⚡ Simulate Remaining Games
+          </button>
+          <button type="button" onclick="switchTab('standings')" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-950/60 transition">
+            View Standings &amp; Seeding →
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Tables Panel -->
+      <div id="active-tables-section" class="space-y-3">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Smart Next-Match Queue ("Up Next") -->
+      <div id="smart-queue-section" class="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-5 shadow-lg space-y-4">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Round Filter Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Full Schedule by Round</div>
+        <div id="round-filter-bar" class="flex items-center gap-2 overflow-x-auto pb-1">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Full Schedule Matches -->
+      <div id="rr-matches-container" class="space-y-6">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: STANDINGS & SEEDING ==================== -->
+    <section id="view-standings" class="tab-view hidden space-y-6">
+      <div class="bg-slate-900/85 border border-slate-800 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white">Individual Standings &amp; High-Low Seeding</h2>
+          <p class="text-sm text-slate-400 mt-1">
+            Ranked by <strong class="text-emerald-400">1) Best Win Percentage</strong>, then <strong class="text-amber-400">2) Net Stat Score</strong> (sum of enabled stats &times; weight). Pairs Rank #1+#2, #3+#4, etc.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button type="button" onclick="switchTab('roundrobin')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition">
+            ← Back to Round Robin
+          </button>
+          <button type="button" onclick="seedAndLaunchBracket()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-950/60 transition">
+            Lock Standings &amp; Launch Playoff Bracket →
+          </button>
+        </div>
+      </div>
+
+      <!-- Leaderboard Table -->
+      <div class="bg-slate-900/85 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead id="standings-thead">
+              <!-- Populated dynamically -->
+            </thead>
+            <tbody id="standings-tbody" class="divide-y divide-slate-800/70 text-sm">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: PLAYOFF BRACKET ==================== -->
+    <section id="view-bracket" class="tab-view hidden space-y-6">
+      <!-- Top Header & Actions -->
+      <div class="bg-slate-900/85 border border-slate-800 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white">High-Low Seeded Playoff Bracket</h2>
+          <p class="text-sm text-slate-400 mt-1">
+            High-Low pairing (#1+#2, #3+#4...; odd last seed plays solo). Play-In &amp; Early Rounds: <strong class="text-slate-200">Best of 3</strong> &bull; Finals: <strong class="text-amber-400">Best of 5</strong>.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button type="button" onclick="switchTab('standings')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition">
+            ← Standings
+          </button>
+          <button type="button" onclick="promptReseedPlayoffs()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs sm:text-sm font-semibold transition">
+            ↻ Re-Seed from Standings
+          </button>
+        </div>
+      </div>
+
+      <!-- Seeded Teams Overview Strip -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-extrabold uppercase tracking-wider text-emerald-400">Seeded Playoff Teams</h3>
+          <span id="playoff-team-count-label" class="text-xs text-slate-400"></span>
+        </div>
+        <div id="playoff-teams-strip" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Champion Banner -->
+      <div id="champion-banner" class="hidden bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-500/20 border-2 border-amber-400/70 rounded-2xl p-6 text-center champion-glow">
+        <div class="text-xs font-extrabold uppercase tracking-widest text-amber-300 mb-1">🏆 Belle River Invitational Champions 🏆</div>
+        <h3 id="champion-team-name" class="text-2xl sm:text-4xl font-black text-white tracking-tight"></h3>
+        <p id="champion-players-sub" class="text-sm text-amber-200/90 mt-1"></p>
+      </div>
+
+      <!-- Horizontal Bracket Columns -->
+      <div class="bg-slate-900/65 border border-slate-800 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+        <div id="bracket-columns-container" class="flex items-stretch gap-6 min-w-max pb-2">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 py-4 px-4 text-center text-xs text-slate-500">
+    PongMaster Pro &bull; Belle River Invitational (Est. 2012) &bull; Auto-saves locally in your browser
+  </footer>
+
+  <script src="js/model/state.js"></script>
+  <script src="js/model/schedule.js"></script>
+  <script src="js/model/standings.js"></script>
+  <script src="js/model/bracket.js"></script>
+  <script src="js/view.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
