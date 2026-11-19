@@ -13,9 +13,11 @@ test('sample roster of 12 shows those players', async ({ page }) => {
   }
 });
 
-test('generate with fewer than 10 players shows an error', async ({ page }) => {
+test('generate with fewer than 4 players shows an error', async ({ page }) => {
+  await page.locator('#bulk-player-input').fill('Ann, Ben, Cal');
+  await page.getByRole('button', { name: '+ Import Roster' }).click();
   await page.getByRole('button', { name: 'Generate Round-Robin Schedule' }).click();
-  await expect(page.locator('#toast-container')).toContainText('Please register between 10 and 30 participants first.');
+  await expect(page.locator('#toast-container')).toContainText('Please register between 4 and 30 participants first.');
   await expect(page.locator('#view-roundrobin')).toBeHidden();
 });
 

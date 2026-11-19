@@ -49,5 +49,5 @@ test('reset all returns to an empty setup screen', async ({ page }) => {
   await page.locator('#confirm-ok-btn').click();
   await expect(page.locator('#view-setup')).toBeVisible();
   await expect(page.locator('#roster-grid')).toContainText('No participants added yet');
-  await expect(page.locator('#player-count-badge')).toHaveText('0 / 30 Players (Min 10)');
+  await expect(page.locator('#player-count-badge')).toHaveText('0 / 30 Players (Min 4)');
 });

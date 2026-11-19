@@ -14,6 +14,7 @@ async function openFresh(page) {
 
 async function loadSample(page, count) {
   const labels = {
+    8: '8 Players',
     12: '12 Players',
     17: '17 Players (Odd)',
     24: '24 Players'
