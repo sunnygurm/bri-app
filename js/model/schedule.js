@@ -1,14 +1,29 @@
 /**
- * Tab 2: Rotating-Partner 2v2 Round-Robin Scheduler
+ * Tab 2: Round-Robin Schedulers (Rotating or Fixed Partners)
  */
 function startRoundRobinTournament() {
-  if (state.players.length < 10 || state.players.length > 30) {
-    showToast('Please register between 10 and 30 participants first.', 'error');
+  if (state.players.length < MIN_PLAYERS || state.players.length > MAX_PLAYERS) {
+    showToast(`Please register between ${MIN_PLAYERS} and ${MAX_PLAYERS} participants first.`, 'error');
+    return;
+  }
+
+  const isFixed = state.config.format === 'fixed';
+  if (isFixed && getUnpairedPlayers().length > 1) {
+    showToast('Pair every player into a team first (one leftover player can play solo).', 'error');
     return;
   }
 
   const executeGeneration = () => {
-    state.rounds = buildRotatingPartnerSchedule(state.players, state.config.maxGamesPerPlayer);
+    if (isFixed) {
+      const teams = getFixedTeams();
+      state.rounds = buildFixedPartnerSchedule(teams);
+      state.scheduleFormat = 'fixed';
+      state.scheduleTeams = teams;
+    } else {
+      state.rounds = buildRotatingPartnerSchedule(state.players, state.config.maxGamesPerPlayer);
+      state.scheduleFormat = 'rotating';
+      state.scheduleTeams = [];
+    }
     state.roundFilter = 'all';
     state.playoffTeams = [];
     state.bracket = null;
@@ -126,26 +141,11 @@ function buildRotatingPartnerSchedule(players, maxGamesSetting) {
         gamesPlayed[idB]++;
       });
 
-      const stats = {};
-      const statDefs = state.config.statDefinitions || DEFAULT_STAT_DEFINITIONS;
-      [pairA[0].id, pairA[1].id, pairB[0].id, pairB[1].id].forEach(pid => {
-        stats[pid] = {};
-        statDefs.forEach(sd => { stats[pid][sd.key] = 0; });
-      });
-
-      matches.push({
-        id: generateId('m'),
-        seqIndex: globalMatchSeq++,
-        teamA: [pairA[0].id, pairA[1].id],
-        teamB: [pairB[0].id, pairB[1].id],
-        winner: null,
-        status: 'pending',
-        tableNumber: null,
-        skipped: false,
-        otLevel: 0,
-        isRevising: false,
-        stats
-      });
+      matches.push(createRoundRobinMatch(
+        globalMatchSeq++,
+        [pairA[0].id, pairA[1].id],
+        [pairB[0].id, pairB[1].id]
+      ));
     }
 
     if (matches.length > 0) {
@@ -156,6 +156,62 @@ function buildRotatingPartnerSchedule(players, maxGamesSetting) {
       });
     }
     roundNum++;
+  }
+
+  return rounds;
+}
+
+function createRoundRobinMatch(seqIndex, teamA, teamB) {
+  const stats = {};
+  const statDefs = state.config.statDefinitions || DEFAULT_STAT_DEFINITIONS;
+  [...teamA, ...teamB].forEach(pid => {
+    stats[pid] = {};
+    statDefs.forEach(sd => { stats[pid][sd.key] = 0; });
+  });
+
+  return {
+    id: generateId('m'),
+    seqIndex,
+    teamA,
+    teamB,
+    winner: null,
+    status: 'pending',
+    tableNumber: null,
+    skipped: false,
+    otLevel: 0,
+    isRevising: false,
+    stats
+  };
+}
+
+function getFixedTeams() {
+  const teams = state.fixedPairs.map(pair => [...pair]);
+  getUnpairedPlayers().forEach(p => teams.push([p.id]));
+  return teams;
+}
+
+// Circle method: every team meets every other team exactly once.
+// An odd team count adds an empty slot, and whoever draws it sits out that round.
+function buildFixedPartnerSchedule(teams) {
+  const slots = teams.length % 2 === 0 ? [...teams] : [...teams, null];
+  const slotCount = slots.length;
+  const rounds = [];
+  let seqIndex = 1;
+
+  for (let r = 0; r < slotCount - 1; r++) {
+    const matches = [];
+    let sitOuts = [];
+    for (let i = 0; i < slotCount / 2; i++) {
+      const teamA = slots[i];
+      const teamB = slots[slotCount - 1 - i];
+      if (!teamA || !teamB) {
+        sitOuts = [...(teamA || teamB)];
+        continue;
+      }
+      matches.push(createRoundRobinMatch(seqIndex++, [...teamA], [...teamB]));
+    }
+    rounds.push({ roundNumber: r + 1, matches, sitOuts });
+    slots.splice(1, 0, slots.pop());
   }
 
   return rounds;
@@ -344,7 +400,7 @@ function finishActiveMatchWithWinner(roundIdx, matchIdx, winningTeam) {
   const nextSuggestions = getSuggestedNextMatches();
   if (nextSuggestions.length > 0 && freedTable) {
     const nextMatch = nextSuggestions[0].match;
-    const pNames = `${getPlayerName(nextMatch.teamA[0])} & ${getPlayerName(nextMatch.teamA[1])} vs ${getPlayerName(nextMatch.teamB[0])} & ${getPlayerName(nextMatch.teamB[1])}`;
+    const pNames = `${formatTeamNames(nextMatch.teamA)} vs ${formatTeamNames(nextMatch.teamB)}`;
     showToast(`Table ${freedTable} open! Next up: Game #${nextMatch.seqIndex} (${pNames})`, 'success');
   } else {
     showToast(`Game #${match.seqIndex} completed!`, 'success');
@@ -508,7 +564,7 @@ function simulateRemainingMatches() {
         const targetAllowed = 10 + (otRounds * sdBonus);
         const loseErrTotal = Math.floor(Math.random() * 2);
         const winCupsNeeded = Math.max(0, targetAllowed - loseErrTotal);
-        const winP1Cups = Math.floor(Math.random() * (winCupsNeeded + 1));
+        const winP1Cups = winPair.length === 1 ? winCupsNeeded : Math.floor(Math.random() * (winCupsNeeded + 1));
         const winP2Cups = winCupsNeeded - winP1Cups;
 
         const loseTargetEff = otRounds > 0
@@ -516,7 +572,7 @@ function simulateRemainingMatches() {
           : (Math.floor(Math.random() * 8) + 2);
         const winErrTotal = Math.min(1, loseTargetEff);
         const loseCupsNeeded = Math.max(0, loseTargetEff - winErrTotal);
-        const loseP1Cups = Math.floor(Math.random() * (loseCupsNeeded + 1));
+        const loseP1Cups = losePair.length === 1 ? loseCupsNeeded : Math.floor(Math.random() * (loseCupsNeeded + 1));
         const loseP2Cups = loseCupsNeeded - loseP1Cups;
 
         winPair.forEach((pid, idx) => {

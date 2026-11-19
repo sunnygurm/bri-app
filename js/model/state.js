@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'pongmaster_bri_tournament_v2';
 
+const MIN_PLAYERS = 4;
+const MAX_PLAYERS = 30;
+
 const DEFAULT_STAT_DEFINITIONS = [
   { key: 'cups', label: 'Cups Hit', shortLabel: 'Cups', weight: 1, enabled: true, color: 'text-emerald-300' },
   { key: 'def', label: 'Defensive Plays', shortLabel: 'Def', weight: 1, enabled: true, color: 'text-sky-300' },
@@ -22,12 +25,16 @@ function createDefaultState() {
     activeTab: 'setup',
     players: [],
     config: {
+      format: 'rotating',
       numTables: 2,
       maxGamesPerPlayer: 12,
       unevenMode: 'playin',
       suddenDeathCups: 1,
       statDefinitions: JSON.parse(JSON.stringify(DEFAULT_STAT_DEFINITIONS))
     },
+    fixedPairs: [],
+    scheduleFormat: 'rotating',
+    scheduleTeams: [],
     rounds: [],
     roundFilter: 'all',
     playoffTeams: [],
@@ -59,6 +66,7 @@ function normalizeState(raw) {
 
   const rawCfg = (raw.config && typeof raw.config === 'object') ? raw.config : {};
   merged.config = {
+    format: rawCfg.format === 'fixed' ? 'fixed' : 'rotating',
     numTables: Math.min(6, Math.max(1, parseInt(rawCfg.numTables, 10) || 2)),
     maxGamesPerPlayer: rawCfg.maxGamesPerPlayer === 'full'
       ? 'full'
@@ -80,6 +88,19 @@ function normalizeState(raw) {
   if (!merged.config.statDefinitions.some(s => s.enabled)) {
     merged.config.statDefinitions[0].enabled = true;
   }
+
+  const playerIds = new Set(merged.players.map(p => p.id));
+  const pairedIds = new Set();
+  merged.fixedPairs = (Array.isArray(raw.fixedPairs) ? raw.fixedPairs : []).filter(pair => {
+    if (!Array.isArray(pair) || pair.length !== 2 || pair[0] === pair[1]) return false;
+    if (!pair.every(id => playerIds.has(id) && !pairedIds.has(id))) return false;
+    pair.forEach(id => pairedIds.add(id));
+    return true;
+  });
+  merged.scheduleFormat = raw.scheduleFormat === 'fixed' ? 'fixed' : 'rotating';
+  merged.scheduleTeams = Array.isArray(raw.scheduleTeams)
+    ? raw.scheduleTeams.filter(team => Array.isArray(team) && team.length > 0)
+    : [];
 
   let seq = 1;
   merged.rounds = merged.rounds.map((r, rIdx) => {
@@ -217,6 +238,10 @@ function getPlayerName(playerId) {
   return p ? p.name : 'Unknown';
 }
 
+function formatTeamNames(playerIds) {
+  return playerIds.map(getPlayerName).join(' & ');
+}
+
 function getEnabledStatDefinitions() {
   const defs = (state.config && Array.isArray(state.config.statDefinitions))
     ? state.config.statDefinitions
@@ -234,8 +259,8 @@ function handleAddPlayer(e) {
   const name = input.value.trim();
   if (!name) return;
 
-  if (state.players.length >= 30) {
-    showToast('Maximum 30 participants allowed.', 'error');
+  if (state.players.length >= MAX_PLAYERS) {
+    showToast(`Maximum ${MAX_PLAYERS} participants allowed.`, 'error');
     return;
   }
   if (state.players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -258,7 +283,7 @@ function handleBulkAddPlayers() {
   let added = 0;
 
   for (const name of names) {
-    if (state.players.length >= 30) break;
+    if (state.players.length >= MAX_PLAYERS) break;
     const cleanName = name.slice(0, 28);
     if (!state.players.some(p => p.name.toLowerCase() === cleanName.toLowerCase())) {
       state.players.push({ id: generateId('p'), name: cleanName });
@@ -272,31 +297,59 @@ function handleBulkAddPlayers() {
   if (added > 0) {
     showToast(`Added ${added} participant${added > 1 ? 's' : ''}.`, 'success');
   } else {
-    showToast('No new unique participants added (Max 30).', 'warning');
+    showToast(`No new unique participants added (Max ${MAX_PLAYERS}).`, 'warning');
   }
 }
 
 function removePlayer(playerId) {
   state.players = state.players.filter(p => p.id !== playerId);
+  state.fixedPairs = state.fixedPairs.filter(pair => !pair.includes(playerId));
   saveState();
   renderSetup();
 }
 
 function clearRoster() {
   state.players = [];
+  state.fixedPairs = [];
   saveState();
   renderSetup();
 }
 
 function loadSampleRoster(count) {
-  const slice = SAMPLE_NAMES.slice(0, Math.min(30, count));
+  const slice = SAMPLE_NAMES.slice(0, Math.min(MAX_PLAYERS, count));
   state.players = slice.map(name => ({ id: generateId('p'), name }));
+  state.fixedPairs = [];
   saveState();
   renderSetup();
   showToast(`Loaded ${slice.length} sample participants.`, 'info');
 }
 
+function getUnpairedPlayers() {
+  const paired = new Set(state.fixedPairs.flat());
+  return state.players.filter(p => !paired.has(p.id));
+}
+
+function handleCreatePair() {
+  const idA = document.getElementById('pair-player-a').value;
+  const idB = document.getElementById('pair-player-b').value;
+  const unpairedIds = new Set(getUnpairedPlayers().map(p => p.id));
+  if (!idA || !idB || idA === idB || !unpairedIds.has(idA) || !unpairedIds.has(idB)) {
+    showToast('Pick two different unpaired players.', 'warning');
+    return;
+  }
+  state.fixedPairs.push([idA, idB]);
+  saveState();
+  renderSetup();
+}
+
+function removePair(pairIdx) {
+  state.fixedPairs.splice(pairIdx, 1);
+  saveState();
+  renderSetup();
+}
+
 function updateConfig() {
+  state.config.format = document.getElementById('config-format').value === 'fixed' ? 'fixed' : 'rotating';
   const numTablesVal = parseInt(document.getElementById('config-num-tables').value, 10) || 2;
   const maxGamesVal = document.getElementById('config-max-games').value;
   const unevenVal = document.getElementById('config-uneven-mode').value;

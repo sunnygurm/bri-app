@@ -66,10 +66,58 @@ function computeStandings() {
   return list;
 }
 
+function computeTeamStandings() {
+  const enabledStats = getEnabledStatDefinitions();
+  const byPlayer = {};
+  computeStandings().forEach(row => { byPlayer[row.playerId] = row; });
+
+  const list = state.scheduleTeams.map(playerIds => {
+    const rows = playerIds.map(pid => byPlayer[pid]).filter(Boolean);
+    const first = rows[0] || { wins: 0, losses: 0, games: 0 };
+    const statTotals = {};
+    enabledStats.forEach(st => {
+      statTotals[st.key] = rows.reduce((sum, row) => sum + (row.statTotals[st.key] || 0), 0);
+    });
+    return {
+      playerIds,
+      name: playerIds.length === 1 ? `${getPlayerName(playerIds[0])} (Solo)` : formatTeamNames(playerIds),
+      wins: first.wins,
+      losses: first.losses,
+      games: first.games,
+      winPct: first.games > 0 ? first.wins / first.games : 0,
+      statTotals,
+      netStatScore: rows.reduce((sum, row) => sum + row.netStatScore, 0)
+    };
+  });
+
+  list.sort((a, b) => {
+    if (Math.abs(b.winPct - a.winPct) > 0.00001) return b.winPct - a.winPct;
+    if (b.netStatScore !== a.netStatScore) return b.netStatScore - a.netStatScore;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return a.name.localeCompare(b.name);
+  });
+
+  return list;
+}
+
 /**
  * Tab 4: High-Low Playoff Team Seeding & Single-Elimination Bracket
  */
 function generatePlayoffTeamsFromStandings(silent = false) {
+  if (state.scheduleFormat === 'fixed') {
+    state.playoffTeams = computeTeamStandings().map((row, idx) => ({
+      id: generateId('team'),
+      seed: idx + 1,
+      name: row.name,
+      playerIds: [...row.playerIds],
+      ranks: [idx + 1],
+      isSolo: row.playerIds.length === 1,
+      isFixed: true
+    }));
+    if (!silent) saveState();
+    return state.playoffTeams;
+  }
+
   const standings = computeStandings();
   const teams = [];
   let seedCounter = 1;

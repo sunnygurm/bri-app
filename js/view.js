@@ -113,6 +113,9 @@ function switchTab(tabName) {
 }
 
 function renderSetup() {
+  const isFixed = state.config.format === 'fixed';
+  document.getElementById('config-format').value = state.config.format;
+  document.getElementById('config-max-games-wrap').classList.toggle('hidden', isFixed);
   document.getElementById('config-num-tables').value = String(state.config.numTables || 2);
   document.getElementById('config-max-games').value = String(state.config.maxGamesPerPlayer);
   document.getElementById('config-uneven-mode').value = state.config.unevenMode;
@@ -149,8 +152,8 @@ function renderSetup() {
 
   const count = state.players.length;
   const badge = document.getElementById('player-count-badge');
-  badge.textContent = `${count} / 30 Players ${count < 10 ? '(Min 10)' : '✓ Ready'}`;
-  badge.className = count >= 10
+  badge.textContent = `${count} / ${MAX_PLAYERS} Players ${count < MIN_PLAYERS ? `(Min ${MIN_PLAYERS})` : '✓ Ready'}`;
+  badge.className = count >= MIN_PLAYERS
     ? 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 self-start sm:self-auto'
     : 'px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 self-start sm:self-auto';
 
@@ -158,7 +161,7 @@ function renderSetup() {
   if (count === 0) {
     grid.innerHTML = `
       <div class="col-span-full py-10 text-center border border-dashed border-slate-800 rounded-xl text-slate-500 text-sm">
-        No participants added yet. Add 10 to 30 players above or click a Quick Test Roster button.
+        No participants added yet. Add ${MIN_PLAYERS} to ${MAX_PLAYERS} players above or click a Quick Test Roster button.
       </div>
     `;
   } else {
@@ -175,9 +178,12 @@ function renderSetup() {
     `).join('');
   }
 
+  renderFixedTeamsPanel(isFixed);
+
   const previewBox = document.getElementById('schedule-preview-box');
-  if (count < 10) {
-    previewBox.innerHTML = `<div class="text-amber-300 font-medium">Add at least <strong>${10 - count} more player${10 - count === 1 ? '' : 's'}</strong> to unlock schedule generation.</div>`;
+  if (count < MIN_PLAYERS) {
+    const needed = MIN_PLAYERS - count;
+    previewBox.innerHTML = `<div class="text-amber-300 font-medium">Add at least <strong>${needed} more player${needed === 1 ? '' : 's'}</strong> to unlock schedule generation.</div>`;
   } else {
     const numTables = state.config.numTables || 2;
     const maxPartnerCombos = count - 1;
@@ -187,15 +193,58 @@ function renderSetup() {
     const playoffTeamsCount = Math.ceil(count / 2);
     const hasSolo = count % 2 === 1;
     const sdBonus = state.config.suddenDeathCups === 3 ? 3 : 1;
+    const gamesRow = isFixed
+      ? `<div class="flex justify-between"><span>Round-Robin Games / Team:</span> <strong class="text-white">${playoffTeamsCount - 1} games (every team once)</strong></div>`
+      : `<div class="flex justify-between"><span>Round-Robin Games / Player:</span> <strong class="text-white">~${targetGames} games</strong></div>`;
 
     previewBox.innerHTML = `
       <div class="flex justify-between"><span>Courts / Tables:</span> <strong class="text-emerald-300">${numTables} Table${numTables > 1 ? 's' : ''} (${numTables * 4} players active max)</strong></div>
-      <div class="flex justify-between"><span>Round-Robin Games / Player:</span> <strong class="text-white">~${targetGames} games</strong></div>
+      ${gamesRow}
       <div class="flex justify-between"><span>Effective Cup Target:</span> <strong class="text-sky-300">10 Reg / +${sdBonus} per OT (OT, 2OT, 3OT...)</strong></div>
       <div class="flex justify-between"><span>Playoff Teams:</span> <strong class="text-emerald-400">${playoffTeamsCount} Teams ${hasSolo ? '(incl. 1 Solo)' : '(All Pairs)'}</strong></div>
       <div class="flex justify-between"><span>Playoff Series:</span> <strong class="text-amber-300">Bo3 Rounds &rarr; Bo5 Finals</strong></div>
     `;
   }
+}
+
+function renderFixedTeamsPanel(isFixed) {
+  const panel = document.getElementById('fixed-teams-panel');
+  panel.classList.toggle('hidden', !isFixed);
+  if (!isFixed) return;
+
+  const unpaired = getUnpairedPlayers();
+  const options = unpaired.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  const teamsHtml = state.fixedPairs.length === 0
+    ? '<div class="text-xs text-slate-500">No teams yet. Pick two players and press + Pair Team.</div>'
+    : state.fixedPairs.map((pair, idx) => `
+      <div class="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-sm">
+        <span class="font-semibold text-slate-200 truncate">Team ${idx + 1}: ${escapeHtml(formatTeamNames(pair))}</span>
+        <button type="button" onclick="removePair(${idx})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition" title="Split team">✕</button>
+      </div>
+    `).join('');
+
+  let unpairedNote = '';
+  if (unpaired.length === 1) {
+    unpairedNote = `<div class="text-xs text-amber-300">${escapeHtml(unpaired[0].name)} will play as a solo team.</div>`;
+  } else if (unpaired.length > 1) {
+    unpairedNote = `<div class="text-xs text-slate-400">Unpaired: ${escapeHtml(unpaired.map(p => p.name).join(', '))}</div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Fixed Teams</div>
+    ${unpaired.length > 1 ? `
+      <div class="flex flex-wrap gap-2">
+        <select id="pair-player-a" class="flex-1 min-w-[8rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none">${options}</select>
+        <select id="pair-player-b" class="flex-1 min-w-[8rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none">${options}</select>
+        <button type="button" onclick="handleCreatePair()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition">+ Pair Team</button>
+      </div>
+    ` : ''}
+    ${unpairedNote}
+    <div class="space-y-1.5">${teamsHtml}</div>
+  `;
+
+  const selectB = document.getElementById('pair-player-b');
+  if (selectB && unpaired[1]) selectB.value = unpaired[1].id;
 }
 
 function renderRoundRobin() {
@@ -210,11 +259,6 @@ function renderRoundRobin() {
     const liveEntry = activeMatches.find(item => item.match.tableNumber === t);
     if (liveEntry) {
       const { round, roundIdx, match, matchIdx } = liveEntry;
-      const pA1 = getPlayerName(match.teamA[0]);
-      const pA2 = getPlayerName(match.teamA[1]);
-      const pB1 = getPlayerName(match.teamB[0]);
-      const pB2 = getPlayerName(match.teamB[1]);
-
       const otLevel = match.otLevel || 0;
       const otLabel = formatOtStageLabel(otLevel);
       const nextOtLabel = formatOtStageLabel(otLevel + 1);
@@ -305,10 +349,9 @@ function renderRoundRobin() {
                   ${winCheckA.allowed ? '🏆 Pair A Wins & Finish' : `🔒 Need ${maxCups} (${effA}/${maxCups})`}
                 </button>
               </div>
-              <div class="text-sm font-bold text-white">${escapeHtml(pA1)} &amp; ${escapeHtml(pA2)}</div>
+              <div class="text-sm font-bold text-white">${escapeHtml(formatTeamNames(match.teamA))}</div>
               <div class="space-y-2">
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamA[0], match.stats[match.teamA[0]], false)}
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamA[1], match.stats[match.teamA[1]], false)}
+                ${match.teamA.map(pid => renderPlayerStatStepperRow(roundIdx, matchIdx, pid, match.stats[pid], false)).join('')}
               </div>
             </div>
 
@@ -334,10 +377,9 @@ function renderRoundRobin() {
                   ${winCheckB.allowed ? '🏆 Pair B Wins & Finish' : `🔒 Need ${maxCups} (${effB}/${maxCups})`}
                 </button>
               </div>
-              <div class="text-sm font-bold text-white">${escapeHtml(pB1)} &amp; ${escapeHtml(pB2)}</div>
+              <div class="text-sm font-bold text-white">${escapeHtml(formatTeamNames(match.teamB))}</div>
               <div class="space-y-2">
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamB[0], match.stats[match.teamB[0]], false)}
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamB[1], match.stats[match.teamB[1]], false)}
+                ${match.teamB.map(pid => renderPlayerStatStepperRow(roundIdx, matchIdx, pid, match.stats[pid], false)).join('')}
               </div>
             </div>
           </div>
@@ -400,8 +442,8 @@ function renderRoundRobin() {
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         ${topSuggestions.map(({ round, roundIdx, match, matchIdx }, idx) => {
-          const pA = `${getPlayerName(match.teamA[0])} & ${getPlayerName(match.teamA[1])}`;
-          const pB = `${getPlayerName(match.teamB[0])} & ${getPlayerName(match.teamB[1])}`;
+          const pA = formatTeamNames(match.teamA);
+          const pB = formatTeamNames(match.teamB);
           const canStart = openTablesCount > 0;
           return `
             <div class="bg-slate-950/90 border ${match.skipped ? 'border-amber-500/60' : (idx === 0 ? 'border-emerald-500/50' : 'border-slate-800')} rounded-xl p-3.5 flex flex-col justify-between gap-3">
@@ -476,11 +518,6 @@ function renderRoundRobin() {
     const sitOutNames = round.sitOuts.map(id => getPlayerName(id));
 
     const matchesHtml = round.matches.map((match, matchIdx) => {
-      const pA1 = getPlayerName(match.teamA[0]);
-      const pA2 = getPlayerName(match.teamA[1]);
-      const pB1 = getPlayerName(match.teamB[0]);
-      const pB2 = getPlayerName(match.teamB[1]);
-
       const isCompleted = match.status === 'completed';
       const isActive = match.status === 'active';
       const isRevising = isCompleted && Boolean(match.isRevising);
@@ -602,10 +639,9 @@ function renderRoundRobin() {
                 </div>
                 ${match.winner === 'A' ? '<span class="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 text-[10px] font-black">WINNER</span>' : ''}
               </div>
-              <div class="text-sm font-bold text-white mb-3">${escapeHtml(pA1)} &amp; ${escapeHtml(pA2)}</div>
+              <div class="text-sm font-bold text-white mb-3">${escapeHtml(formatTeamNames(match.teamA))}</div>
               <div class="space-y-2">
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamA[0], match.stats[match.teamA[0]], isLocked)}
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamA[1], match.stats[match.teamA[1]], isLocked)}
+                ${match.teamA.map(pid => renderPlayerStatStepperRow(roundIdx, matchIdx, pid, match.stats[pid], isLocked)).join('')}
               </div>
             </div>
 
@@ -623,10 +659,9 @@ function renderRoundRobin() {
                 </div>
                 ${match.winner === 'B' ? '<span class="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 text-[10px] font-black">WINNER</span>' : ''}
               </div>
-              <div class="text-sm font-bold text-white mb-3">${escapeHtml(pB1)} &amp; ${escapeHtml(pB2)}</div>
+              <div class="text-sm font-bold text-white mb-3">${escapeHtml(formatTeamNames(match.teamB))}</div>
               <div class="space-y-2">
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamB[0], match.stats[match.teamB[0]], isLocked)}
-                ${renderPlayerStatStepperRow(roundIdx, matchIdx, match.teamB[1], match.stats[match.teamB[1]], isLocked)}
+                ${match.teamB.map(pid => renderPlayerStatStepperRow(roundIdx, matchIdx, pid, match.stats[pid], isLocked)).join('')}
               </div>
             </div>
           </div>
@@ -687,15 +722,18 @@ function renderSingleStatControl(roundIdx, matchIdx, playerId, statKey, label, v
 }
 
 function renderStandings() {
-  const standings = computeStandings();
+  const isFixed = state.scheduleFormat === 'fixed';
+  const standings = isFixed ? computeTeamStandings() : computeStandings();
   const enabledStats = getEnabledStatDefinitions();
   const thead = document.getElementById('standings-thead');
   const tbody = document.getElementById('standings-tbody');
+  document.getElementById('standings-desc-rotating').classList.toggle('hidden', isFixed);
+  document.getElementById('standings-desc-fixed').classList.toggle('hidden', !isFixed);
 
   thead.innerHTML = `
     <tr class="bg-slate-950/90 border-b border-slate-800 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
       <th class="py-3.5 px-4">Rank</th>
-      <th class="py-3.5 px-4">Participant</th>
+      <th class="py-3.5 px-4">${isFixed ? 'Team' : 'Participant'}</th>
       <th class="py-3.5 px-3 text-center">W - L</th>
       <th class="py-3.5 px-3 text-center text-emerald-400">Win % (1st)</th>
       <th class="py-3.5 px-3 text-center text-amber-400">Net Stat Score (2nd)</th>
@@ -736,13 +774,18 @@ function renderBracket() {
   const teamCountLabel = document.getElementById('playoff-team-count-label');
   const teamsStrip = document.getElementById('playoff-teams-strip');
   if (teamCountLabel && teamsStrip) {
-    teamCountLabel.textContent = `${state.playoffTeams.length} Teams (High-Low Seeding)`;
+    const isFixed = state.scheduleFormat === 'fixed';
+    teamCountLabel.textContent = `${state.playoffTeams.length} Teams (${isFixed ? 'Seeded by Team Record' : 'High-Low Seeding'})`;
+    document.getElementById('bracket-desc-rotating').classList.toggle('hidden', isFixed);
+    document.getElementById('bracket-desc-fixed').classList.toggle('hidden', !isFixed);
     teamsStrip.innerHTML = state.playoffTeams.map(team => `
       <div class="bg-slate-950/90 border ${team.isSolo ? 'border-amber-500/45' : 'border-slate-800'} rounded-xl px-3 py-2 flex items-center justify-between gap-2">
         <div class="truncate">
           <div class="text-xs font-extrabold text-white truncate">#${team.seed} ${escapeHtml(team.name)}</div>
           <div class="text-[10px] text-slate-400">
-            ${team.isSolo ? 'Solo Entry (Last Seed)' : `Ranks #${team.ranks[0]} & #${team.ranks[1]}`}
+            ${team.isFixed
+              ? `Round-Robin Team Rank #${team.ranks[0]}${team.isSolo ? ' (Solo)' : ''}`
+              : (team.isSolo ? 'Solo Entry (Last Seed)' : `Ranks #${team.ranks[0]} & #${team.ranks[1]}`)}
           </div>
         </div>
         ${team.isSolo ? '<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold shrink-0">SOLO</span>' : ''}
